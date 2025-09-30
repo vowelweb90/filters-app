@@ -1,16 +1,10 @@
-import { PrismaClient } from "@prisma/client";
+import mongoose from "mongoose";
 
-declare global {
-  // eslint-disable-next-line no-var
-  var prismaGlobal: PrismaClient;
-}
-
-if (process.env.NODE_ENV !== "production") {
-  if (!global.prismaGlobal) {
-    global.prismaGlobal = new PrismaClient();
+export async function dbconnection() {
+  try {
+    await mongoose.connect("mongodb://localhost:27017/bello-diamonds");
+    console.log("Database connected");
+  } catch (error) {
+    console.log("Database Error: ", error);
   }
 }
-
-const prisma = global.prismaGlobal ?? new PrismaClient();
-
-export default prisma;

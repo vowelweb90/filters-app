@@ -1,4 +1,5 @@
-import { METAFIELDS } from "app/utils/constants";
+import { AdminApiContext } from "@shopify/shopify-app-react-router/server";
+import { METAFIELDS } from "app/services/utils/constants";
 
 export type AdminClient = {
   graphql: <T>(q: string, v: object) => Promise<GraphqlResponse<T>>;

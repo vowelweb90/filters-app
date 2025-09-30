@@ -1,6 +1,6 @@
 import { Product } from "../models/product";
 import { LoaderFunctionArgs } from "react-router";
-import { json } from "../utils/lib";
+import { json } from "../services/utils/lib";
 import { SortOrder } from "mongoose";
 import { authenticate } from "app/shopify.server";
 

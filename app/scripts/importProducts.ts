@@ -1,15 +1,15 @@
-import mongoose from "mongoose";
-import { METAFIELDS } from "app/utils/constants";
-import fs from "fs";
-import { AppError } from "app/utils/AppError";
+import { METAFIELDS } from "app/services/utils/constants";
+import { AppError } from "app/services/utils/AppError";
+import { Product } from "app/models/product";
+import { log, sleep } from "app/services/utils/lib";
 import {
   TProduct,
-  AdminClient,
   ValueCollectionContext,
   BatchContext,
-  ProductsGQL,
   ImportProductGQL,
 } from "../types";
+import { createAdminClient } from "app/services/helpers/createAdminClient";
+import { fetchProducts } from "app/services/helpers/fetchProducts";
 
 const MAX_REQUESTS_LIMIT = 200;
 const MAX_ERROR_LIMIT = 50;
@@ -18,246 +18,6 @@ const API_VERSION = "2025-01";
 const START_CURSOR = null;
 const SHOP = process.env.SHOP;
 const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
-
-const productsQuery = `
-query getProducts($limit: Int, $cursor: String) {
-  products(first: $limit, after: $cursor) {
-    nodes {
-      id
-      metafields(first: 250, namespace: "custom") {
-        nodes {
-          key
-          id
-          namespace
-          jsonValue
-        }
-      }
-      title
-      description
-      handle
-      createdAt
-      priceRangeV2 {
-        minVariantPrice {
-          amount
-          currencyCode
-        }
-      }
-      collections(first: 250) {
-        nodes {
-          id
-        }
-      }
-    }
-    pageInfo {
-      endCursor
-      hasNextPage
-    }
-  }
-}`;
-
-const productSchema = new mongoose.Schema(
-  {
-    gid: { type: String, required: true },
-    title: { type: String, required: true },
-    description: { type: String },
-    handle: { type: String, required: true },
-    shopifyCreatedAt: { type: Date },
-    priceAmount: { type: Number, required: true },
-    priceCurrency: { type: String },
-    collections: [{ type: String }],
-
-    // Metafields
-    style: {
-      type: String,
-      enum: [
-        "ETERNITY",
-        "HALO",
-        "ROUND",
-        "SIDE STONES",
-        "SOLITARE",
-        "STUDS", // from errors
-        "HEART",
-        "OVAL",
-        "CUSHION BRILLIANT",
-        "EMERALD",
-        "SOLITAIRE",
-        "PRINCESS",
-        "PEAR",
-        "MARQUISE",
-        "RADIANT",
-        "TOI ET MOI",
-        "MULTI-STONE",
-        "THREE STONE",
-        "ASSCHER",
-        "CUSHION MODIFIED",
-        "FULL ETERNITY",
-        "BANGLE",
-      ],
-    },
-    shape: {
-      type: String,
-      enum: [
-        "RADIANT",
-        "CUSHION",
-        "ASSCHER",
-        "EMERALD",
-        "HEART",
-        "MARQUISE",
-        "OVAL",
-        "PEAR",
-        "PRINCESS",
-        "ROUND",
-        "CUSHION BRILLIANT",
-        "CUSHION MODIFIED",
-      ],
-    },
-    cut: {
-      type: String,
-      enum: [
-        "EX",
-        "GD",
-        "ID",
-        "VG",
-        "F", // from errors
-        "ID",
-      ],
-    },
-    carat: { type: Number },
-    carat_size: { type: [Number] },
-    clarity: {
-      type: String,
-      enum: ["IF", "FL", "VS1", "VS2", "VS+", "VVS1", "VVS2"],
-    },
-    diamond_color: {
-      type: String,
-      enum: [
-        "D",
-        "E",
-        "F",
-        "F-G",
-        "G",
-        "E-F-G", // from errors
-      ],
-    },
-    polish: { type: String, enum: ["EX", "GD", "VG"] },
-    symmetry: { type: String, enum: ["EX", "GD", "VG"] },
-    certification: { type: String, enum: ["IGI", "GIA"] },
-    ring_carat: { type: [Number] },
-    depth: { type: Number },
-    lw_ratio: { type: Number },
-    fluorescence: { type: String },
-    table: { type: Number },
-  },
-  { timestamps: true },
-);
-
-const Product =
-  mongoose.models.Product || mongoose.model("Product", productSchema);
-
-function getNow() {
-  return `[ ${new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} ]`;
-}
-
-function log(
-  ...args: (string | boolean | number | undefined | null | object | Error)[]
-) {
-  const logInConsole = args[0];
-  if (logInConsole !== false) console.log(getNow(), ...args);
-  fs.writeFileSync(
-    "import.log",
-    `${getNow()} ${args.length > 1 ? (logInConsole === false ? args.slice(1).join(" ") : args.join(" ")) : args[0]}\n`,
-    { encoding: "utf-8", flag: "a" },
-  );
-}
-function sleep(interval: number) {
-  return new Promise((resolve) => setTimeout(resolve, interval));
-}
-
-async function connectToDatabase() {
-  try {
-    await mongoose.connect("mongodb://localhost:27017/bello-diamonds");
-    console.log("Database connected");
-  } catch (error) {
-    console.log("Database Error: ", error);
-  }
-}
-
-function createAdminClient(
-  shop: string,
-  accessToken: string,
-  apiVersion: string,
-): AdminClient {
-  const admin: AdminClient = {
-    graphql: async (query: string, variables = {}) => {
-      let response, data;
-      try {
-        response = await fetch(
-          `https://${shop}/admin/api/${apiVersion}/graphql.json`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "X-Shopify-Access-Token": accessToken,
-            },
-            body: JSON.stringify({ query, variables }),
-          },
-        );
-
-        data = await response.json();
-
-        if (!response.ok) {
-          const error = new AppError("Shopify GraphQL request failed");
-          error.response = response;
-          error.data = data;
-          throw error;
-        }
-
-        return data;
-      } catch (error) {
-        if (!(error instanceof AppError)) {
-          throw error;
-        }
-
-        if (!error.response && response) {
-          error.response = response;
-          error.data = data;
-        }
-        throw error;
-      }
-    },
-  } as AdminClient;
-
-  return admin;
-}
-
-async function fetchProducts({
-  admin,
-  cursor,
-  context,
-}: {
-  admin: AdminClient;
-  cursor: null | string;
-  context: BatchContext;
-}) {
-  try {
-    const data = await admin.graphql<ProductsGQL<ImportProductGQL>>(
-      productsQuery,
-      {
-        cursor,
-        limit: PRODUCTS_PER_REQUEST,
-      },
-    );
-
-    context.data = data;
-
-    if (context.data?.data?.errors?.length || !context.data?.data?.products)
-      throw new Error("GraphQL Error");
-
-    return context.data?.data.products.nodes;
-  } catch (error) {
-    throw error;
-  }
-}
 
 function formatProducts(
   unformattedProducts: ImportProductGQL[],
@@ -361,9 +121,8 @@ async function importProducts() {
     let encounteredRateLimitError = false;
     const valueCollectionContext: ValueCollectionContext = {};
 
-    await connectToDatabase();
-
-    if(!SHOP || !SHOPIFY_ACCESS_TOKEN ) throw new Error("env variables not found")
+    if (!SHOP || !SHOPIFY_ACCESS_TOKEN)
+      throw new Error("env variables not found");
 
     const admin = createAdminClient(SHOP, SHOPIFY_ACCESS_TOKEN, API_VERSION);
 
@@ -382,6 +141,7 @@ async function importProducts() {
           admin,
           cursor,
           context,
+          productsPerRequest: PRODUCTS_PER_REQUEST,
         });
 
         context.formattedProducts = formatProducts(
