@@ -19,6 +19,7 @@ export function formatProducts(
           : null,
       priceCurrency: p.priceRangeV2?.minVariantPrice?.currencyCode || null,
       collections: p.collections?.nodes?.map((c) => c.id) || [],
+      collectionHandles: p.collections?.nodes?.map((c) => c.handle) || [],
     };
 
     for (const field of METAFIELDS) {

@@ -10,6 +10,7 @@ const productSchema = new mongoose.Schema(
     priceAmount: { type: Number, required: true },
     priceCurrency: { type: String },
     collections: [{ type: String }],
+    collectionHandles: { type: [String] },
 
     // Metafields
     style: {
@@ -95,6 +96,18 @@ const productSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
+
+productSchema.index(
+  {
+    title: "text",
+    description: "text",
+    handle: "text",
+    collectionHandles: "text",
+  },
+  { name: "TextSearchIndex" },
+);
+
+productSchema.index({ style: 1, carat: 1, shape: 1 }, { name: "SortIndex" });
 
 export const Product =
   mongoose.models.Product || mongoose.model("Product", productSchema);

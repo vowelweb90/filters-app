@@ -24,6 +24,7 @@ query getProducts($limit: Int, $cursor: String) {
       collections(first: 250) {
         nodes {
           id
+          handle
         }
       }
     }

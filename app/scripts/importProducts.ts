@@ -1,10 +1,7 @@
 import { AppError } from "app/services/utils/AppError";
 import { Product } from "app/models/product";
 import { log, sleep } from "app/services/utils/lib";
-import {
-  ValueCollectionContext,
-  BatchContext,
-} from "../types";
+import { ValueCollectionContext, BatchContext } from "../types";
 import { createAdminClient } from "app/services/helpers/createAdminClient";
 import { fetchProducts } from "app/services/helpers/fetchProducts";
 import { formatProducts } from "app/services/helpers/formatProducts";
@@ -29,7 +26,11 @@ async function importProducts() {
     if (!SHOP || !SHOPIFY_ACCESS_TOKEN)
       throw new Error("env variables not found");
 
-    const admin = createAdminClient(SHOP, SHOPIFY_ACCESS_TOKEN, API_VERSION);
+    const admin = createAdminClient({
+      shop: SHOP,
+      accessToken: SHOPIFY_ACCESS_TOKEN,
+      apiVersion: API_VERSION,
+    });
 
     while (hasNextPage) {
       batchRequestCount++;

@@ -1,11 +1,15 @@
 import { AdminClient } from "app/types";
 import { AppError } from "../utils/AppError";
 
-export function createAdminClient(
-  shop: string,
-  accessToken: string,
-  apiVersion: string,
-): AdminClient {
+export function createAdminClient({
+  shop,
+  accessToken,
+  apiVersion,
+}: {
+  shop: string;
+  accessToken: string;
+  apiVersion: string;
+}): AdminClient {
   const admin: AdminClient = {
     graphql: async (query: string, variables = {}) => {
       let response, data;

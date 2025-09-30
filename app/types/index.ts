@@ -14,6 +14,7 @@ export type TProduct = {
   priceAmount: number | null;
   priceCurrency: string | null;
   collections: string[];
+  collectionHandles: string[];
   style?: string | null;
   shape?: string | null;
   cut?: string | null;
@@ -62,7 +63,7 @@ export type ImportProductGQL = {
     };
   };
   collections: {
-    nodes: { id: string }[];
+    nodes: { id: string; handle: string }[];
   };
 };
 
@@ -132,4 +133,42 @@ export type WebhookContext<T = ProductWebhookPayload> = {
   topic: string;
   admin: AdminApiContext;
   payload: T;
+};
+
+export type ProductResponse = {
+  id: string;
+  handle: string;
+  title: string;
+  featuredImage: {
+    id: string;
+    altText: string | null;
+    url: string;
+    width: number;
+    height: number;
+  };
+  priceRange: {
+    minVariantPrice: { amount: string; currencyCode: string };
+    maxVariantPrice: { amount: string; currencyCode: string };
+  };
+};
+
+export type ProductResponseGQL = {
+  featuredMedia: {
+    id: string;
+    preview: {
+      image: {
+        altText: string;
+        url: string;
+        width: string;
+        height: string;
+      };
+    };
+  };
+  id: string;
+  handle: string;
+  title: string;
+  priceRangeV2: {
+    minVariantPrice: { amount: string; currencyCode: string };
+    maxVariantPrice: { amount: string; currencyCode: string };
+  };
 };

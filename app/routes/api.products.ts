@@ -2,62 +2,48 @@ import { Product } from "../models/product";
 import { LoaderFunctionArgs } from "react-router";
 import { json, toGid } from "../services/utils/lib";
 import { SortOrder } from "mongoose";
-import { authenticate } from "app/shopify.server";
-
-// interface IProduct {
-//   id: string;
-//   handle: string;
-//   title: string;
-//   featuredImage: {
-//     id: string;
-//     altText: string | null;
-//     url: string;
-//     width: number;
-//     height: number;
-//   };
-//   priceRange: {
-//     minVariantPrice: { amount: string; currencyCode: string };
-//     maxVariantPrice: { amount: string; currencyCode: string };
-//   };
-// }
+import { apiVersion } from "app/shopify.server";
+import { ProductResponse, ProductResponseGQL } from "app/types";
+import { createAdminClient } from "app/services/helpers/createAdminClient";
 
 const GET_PRODUCTS_BY_IDS = `
-  query GetProductsByIds($ids: [ID!]!) {
-    nodes(ids: $ids) {
-      ... on Product {
+query GetProductsByIds($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Product {
+      id
+      handle
+      title
+      featuredMedia {
         id
-        handle
-        title
-        featuredImage {
+        preview {
+          image {
+            altText
+            height
+            width
+            url
+          }
+        }
+      }
+      priceRangeV2 {
+        minVariantPrice {
+          amount
+          currencyCode
+        }
+        maxVariantPrice {
+          amount
+          currencyCode
+        }
+      }
+      variants(first: 1) {
+        nodes {
           id
-          altText
-          url
-          width
-          height
-        }
-        priceRange {
-          minVariantPrice {
-            amount
-            currencyCode
-          }
-          maxVariantPrice {
-            amount
-            currencyCode
-          }
-        }
-        variants(first: 1) {
-          nodes {
-            id
-            price {
-              amount
-              currencyCode
-            }
-          }
+          price
         }
       }
     }
   }
-`;
+}`;
+
 const sanitizeString = (str: string | null | undefined) => {
   if (!str) return undefined;
   const trimmed = str.trim();
@@ -66,11 +52,15 @@ const sanitizeString = (str: string | null | undefined) => {
 
 export async function loader({ request }: LoaderFunctionArgs) {
   try {
-    const { admin } = await authenticate.admin(request);
+    const admin = createAdminClient({
+      shop: process.env.SHOP!,
+      accessToken: process.env.SHOPIFY_ACCESS_TOKEN!,
+      apiVersion: apiVersion,
+    });
     const url = new URL(request.url);
     const params = url.searchParams;
 
-    const context: any = {};
+    const context: Record<string, any> = {};
 
     context.search = params.get("search")?.trim() || undefined;
 
@@ -80,6 +70,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
           .split(",")
           .map((id) => toGid("Collection", id))
           .filter(Boolean)
+      : undefined;
+    context.collectionHandles = params.get("collectionHandles")
+      ? params.get("collectionHandles")!.split(",").filter(Boolean)
       : undefined;
 
     context.ids = params.get("ids")
@@ -141,10 +134,19 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     if (context.search) query.$text = { $search: context.search };
     if (context.collections) query.collections = { $in: context.collections };
+    if (context.collectionHandles)
+      query.collectionHandles = { $in: context.collectionHandles };
     if (context.ids) query.gid = { $in: context.ids };
-    if (context.style) query.style = context.style;
-    if (context.shape) query.shape = context.shape;
-    if (context.cut) query.cut = context.cut;
+
+    if (context.style || context.shape || context.cut) {
+      if (context.style) query.style = context.style;
+      if (context.shape) query.shape = context.shape;
+      if (context.cut) query.cut = context.cut;
+    } else {
+      query.style = context.style || { $exists: true };
+      query.shape = context.shape || { $exists: true };
+      query.cut = context.cut || { $exists: true };
+    }
 
     if (context.caratMin !== undefined || context.caratMax !== undefined) {
       query.carat = {};
@@ -160,7 +162,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         query.priceAmount.$lte = context.priceMax;
     }
 
-    const sort: Record<string, SortOrder> = {};
+    const sort: Record<string, SortOrder> = { style: 1, cut: 1, shape: 1 };
     if (context.sortBy) sort[context.sortBy] = context.sortOrder;
 
     const skip = (context.page - 1) * context.limit;
@@ -171,12 +173,39 @@ export async function loader({ request }: LoaderFunctionArgs) {
       .limit(context.limit);
     const total = await Product.countDocuments(query);
 
-    const response = await admin.graphql(GET_PRODUCTS_BY_IDS, {
-      variables: { ids: products.map((p) => p.gid) },
-    });
+    // const response = await admin.graphql(GET_PRODUCTS_BY_IDS, {
+    //   variables: { ids: products.map((p) => p.gid) },
+    // });
 
-    const data = response.json();
-    const shopifyProducts = data.data?.nodes || [];
+    // const data = await response.json();
+
+    const data = await admin.graphql<{ nodes: ProductResponseGQL[] }>(
+      GET_PRODUCTS_BY_IDS,
+      { ids: products.map((p) => p.gid) },
+    );
+
+    const shopifyProducts = (data.data?.nodes || [])
+      .filter((node) => node)
+      .map((node) => {
+        const image = node.featuredMedia?.preview?.image;
+
+        return {
+          id: node.id,
+          handle: node.handle,
+          title: node.title,
+          featuredImage: {
+            id: node.featuredMedia?.id || "",
+            altText: image?.altText || null,
+            url: image?.url || "",
+            width: image?.width || 0,
+            height: image?.height || 0,
+          },
+          priceRange: {
+            minVariantPrice: node.priceRangeV2.minVariantPrice,
+            maxVariantPrice: node.priceRangeV2.maxVariantPrice,
+          },
+        } as ProductResponse;
+      });
 
     return json({
       data: shopifyProducts,

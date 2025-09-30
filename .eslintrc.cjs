@@ -76,7 +76,7 @@ module.exports = {
         "plugin:import/typescript",
       ],
       rules: {
-        "no-useless-catch": "off",
+        "@typescript-eslint/no-explicit-any": "off",
       },
     },
 
