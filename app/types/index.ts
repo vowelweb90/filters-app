@@ -102,3 +102,34 @@ export type BatchContext = {
   batchRequestCount?: number | null;
   waitMs?: number | null;
 };
+
+export type ProductWebhookPayload = {
+  admin_graphql_api_id: string;
+  id: number;
+  title: string;
+  handle: string;
+  body_html: string;
+  product_type: string;
+  vendor: string;
+  status: string;
+  published_at: string | null;
+  template_suffix: string;
+  published_scope: string;
+  tags: string;
+  created_at: string;
+  updated_at: string;
+  variants: unknown;
+  options: unknown;
+  images: unknown;
+  image: unknown;
+  media: unknown;
+  variant_gids: unknown;
+  has_variants_that_requires_components: boolean;
+  category: unknown;
+};
+
+export type WebhookContext<T = ProductWebhookPayload> = {
+  topic: string;
+  admin: AdminApiContext;
+  payload: T;
+};

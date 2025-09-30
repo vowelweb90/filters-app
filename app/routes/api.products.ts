@@ -1,6 +1,6 @@
 import { Product } from "../models/product";
 import { LoaderFunctionArgs } from "react-router";
-import { json } from "../services/utils/lib";
+import { json, toGid } from "../services/utils/lib";
 import { SortOrder } from "mongoose";
 import { authenticate } from "app/shopify.server";
 
@@ -58,14 +58,6 @@ const GET_PRODUCTS_BY_IDS = `
     }
   }
 `;
-
-const toGid = (resource: string, id: string) => {
-  id = id?.trim();
-  if (!id) return null;
-  if (id.startsWith("gid://shopify/")) return id;
-  return `gid://shopify/${resource}/${id}`;
-};
-
 const sanitizeString = (str: string | null | undefined) => {
   if (!str) return undefined;
   const trimmed = str.trim();

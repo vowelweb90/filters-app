@@ -24,6 +24,15 @@ export function log(
     { encoding: "utf-8", flag: "a" },
   );
 }
+
 export function sleep(interval: number) {
   return new Promise((resolve) => setTimeout(resolve, interval));
 }
+
+
+export const toGid = (resource: string, id: string) => {
+  id = id?.trim();
+  if (!id) return null;
+  if (id.startsWith("gid://shopify/")) return id;
+  return `gid://shopify/${resource}/${id}`;
+};
