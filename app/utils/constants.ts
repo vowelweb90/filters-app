@@ -1,0 +1,17 @@
+export const METAFIELDS = [
+  { key: "style", jsonParseble: false, type: "string" },
+  { key: "shape", jsonParseble: false, type: "string" },
+  { key: "cut", jsonParseble: false, type: "string" },
+  { key: "clarity", jsonParseble: false, type: "string" },
+  { key: "diamond_color", jsonParseble: false, type: "string" },
+  { key: "polish", jsonParseble: false, type: "string" },
+  { key: "symmetry", jsonParseble: false, type: "string" },
+  { key: "certification", jsonParseble: false, type: "string" },
+  { key: "ring_carat", jsonParseble: false, type: "string" },
+  { key: "fluorescence", jsonParseble: false, type: "string" },
+  { key: "carat_size", jsonParseble: false, type: "number[]" },
+  { key: "depth", jsonParseble: false, type: "number" },
+  { key: "lw_ratio", jsonParseble: false, type: "number" },
+  { key: "carat", jsonParseble: false, type: "number" },
+  { key: "table", jsonParseble: false, type: "number" },
+] as const;
