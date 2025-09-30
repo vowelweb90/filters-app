@@ -1,12 +1,12 @@
-import { AppError } from "app/services/utils/AppError";
-import { Product } from "app/models/product";
-import { log, sleep } from "app/services/utils/lib";
+import { AppError } from "../services/utils/AppError";
+import { Product } from "../models/product";
+import { log, sleep } from "../services/utils/lib";
 import { ValueCollectionContext, BatchContext } from "../types";
-import { createAdminClient } from "app/services/helpers/createAdminClient";
-import { fetchProducts } from "app/services/helpers/fetchProducts";
-import { formatProducts } from "app/services/helpers/formatProducts";
+import { createAdminClient } from "../services/helpers/createAdminClient";
+import { fetchProducts } from "../services/helpers/fetchProducts";
+import { formatProducts } from "../services/helpers/formatProducts";
 
-const MAX_REQUESTS_LIMIT = 200;
+const MAX_REQUESTS_LIMIT = 5;
 const MAX_ERROR_LIMIT = 50;
 const PRODUCTS_PER_REQUEST = 250;
 const API_VERSION = "2025-01";
@@ -14,7 +14,7 @@ const START_CURSOR = null;
 const SHOP = process.env.SHOP;
 const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 
-async function importProducts() {
+export async function importProducts() {
   try {
     let hasNextPage = true;
     let cursor: string | null = START_CURSOR;
@@ -156,10 +156,7 @@ async function importProducts() {
       log(false, `Errors logs ${JSON.stringify(errors, null, 2)}`);
     }
     console.log("=============== Finished ===============");
-    process.exit();
   } catch (error) {
     log("IMPORT_PRODUCTS: ", error as Error);
   }
 }
-
-importProducts();

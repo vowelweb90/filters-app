@@ -3,46 +3,13 @@ import { LoaderFunctionArgs } from "react-router";
 import { json, toGid } from "../services/utils/lib";
 import { SortOrder } from "mongoose";
 import { apiVersion } from "app/shopify.server";
-import { ProductResponse, ProductResponseGQL } from "app/types";
+import {
+  ProductResponse,
+  ProductResponseGQL,
+  ProductsResponseData,
+} from "app/types";
 import { createAdminClient } from "app/services/helpers/createAdminClient";
-
-const GET_PRODUCTS_BY_IDS = `
-query GetProductsByIds($ids: [ID!]!) {
-  nodes(ids: $ids) {
-    ... on Product {
-      id
-      handle
-      title
-      featuredMedia {
-        id
-        preview {
-          image {
-            altText
-            height
-            width
-            url
-          }
-        }
-      }
-      priceRangeV2 {
-        minVariantPrice {
-          amount
-          currencyCode
-        }
-        maxVariantPrice {
-          amount
-          currencyCode
-        }
-      }
-      variants(first: 1) {
-        nodes {
-          id
-          price
-        }
-      }
-    }
-  }
-}`;
+import { getProductsByIdsQuery } from "app/queries/graphql/getProductsByIdsQuery";
 
 const sanitizeString = (str: string | null | undefined) => {
   if (!str) return undefined;
@@ -167,6 +134,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     const skip = (context.page - 1) * context.limit;
 
+    console.log("query: ", JSON.stringify(query, null, 2));
+    console.log("sort: ", JSON.stringify(sort, null, 2));
+    console.log("context: ", JSON.stringify(context, null, 2));
     const products = await Product.find(query, { gid: 1, _id: 0 })
       .sort(sort)
       .skip(skip)
@@ -180,7 +150,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     // const data = await response.json();
 
     const data = await admin.graphql<{ nodes: ProductResponseGQL[] }>(
-      GET_PRODUCTS_BY_IDS,
+      getProductsByIdsQuery,
       { ids: products.map((p) => p.gid) },
     );
 
@@ -193,6 +163,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
           id: node.id,
           handle: node.handle,
           title: node.title,
+          tags: node.tags,
+          productType: node.productType,
           featuredImage: {
             id: node.featuredMedia?.id || "",
             altText: image?.altText || null,
@@ -204,18 +176,53 @@ export async function loader({ request }: LoaderFunctionArgs) {
             minVariantPrice: node.priceRangeV2.minVariantPrice,
             maxVariantPrice: node.priceRangeV2.maxVariantPrice,
           },
+          caratMetafield: node.caratMetafield,
+          shape: node.shape,
+          diamondColor: node.diamondColor,
+          cut: node.cut,
+          clarity: node.clarity,
+          depth: node.depth,
+          polish: node.polish,
+          lwRatio: node.lwRatio,
+          fluorescence: node.fluorescence,
+          report: node.report,
+          table: node.table,
+          symmetry: node.symmetry,
+          showOnCollection: node.showOnCollection,
+          sizeProductOption: node.sizeProductOption,
+          certification: node.certification,
+          style: node.style,
+          sliderEnable: node.sliderEnable,
+          pinned: node.pinned,
+          variants: {
+            nodes: node.variants.nodes.map((v) => ({
+              ...v,
+              price: {
+                amount: v.price,
+                currencyCode: node.priceRangeV2.minVariantPrice.currencyCode,
+              },
+            })),
+          },
         } as ProductResponse;
       });
 
-    return json({
-      data: shopifyProducts,
-      pagination: {
-        page: context.page,
-        limit: context.limit,
-        total,
-        totalPages: Math.ceil(total / context.limit),
+      console.log('shopifyProducts: ', shopifyProducts.length);
+
+    const responseData: ProductsResponseData = {
+      data: {
+        nodes: shopifyProducts,
+        pageInfo: {
+          page: context.page,
+          limit: context.limit,
+          total,
+          totalPages: Math.ceil(total / context.limit),
+          hasNextPage: context.page < Math.ceil(total / context.limit),
+          hasPreviousPage: context.page > 1,
+        },
       },
-    });
+    };
+
+    return json(responseData);
   } catch (error) {
     console.error("Error fetching products:", error);
     return json({ error: "Failed to fetch products" }, { status: 500 });

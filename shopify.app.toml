@@ -28,3 +28,9 @@ scopes = "write_products"
 redirect_urls = [
   "https://shared-zum-canberra-adjusted.trycloudflare.com/api/auth"
 ]
+
+[app_proxy]
+url = "https://shared-zum-canberra-adjusted.trycloudflare.com"
+subpath = "filters"
+prefix = "apps"
+

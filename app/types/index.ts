@@ -150,6 +150,47 @@ export type ProductResponse = {
     minVariantPrice: { amount: string; currencyCode: string };
     maxVariantPrice: { amount: string; currencyCode: string };
   };
+
+  tags: string[];
+  productType: string;
+  caratMetafield: string;
+  shape: string;
+  diamondColor: string;
+  cut: string;
+  clarity: string;
+  depth: string;
+  polish: string;
+  lwRatio: string;
+  fluorescence: string;
+  report: string;
+  table: string;
+  symmetry: string;
+  showOnCollection: string;
+  sizeProductOption: string;
+  certification: string;
+  style: string;
+  sliderEnable: string;
+  pinned: string;
+  variants: {
+    nodes: {
+      id: string;
+      title: string;
+      availableForSale: boolean;
+      price: { amount: string; currencyCode: string };
+      compareAtPrice?: string | number | null;
+      selectedOptions: {
+        name: string;
+        value: string;
+      }[];
+      image?: {
+        id: string;
+        altText?: string | null;
+        url: string;
+        width: number;
+        height: number;
+      } | null;
+    }[];
+  };
 };
 
 export type ProductResponseGQL = {
@@ -167,8 +208,62 @@ export type ProductResponseGQL = {
   id: string;
   handle: string;
   title: string;
+  tags: string[];
+  productType: string;
   priceRangeV2: {
     minVariantPrice: { amount: string; currencyCode: string };
     maxVariantPrice: { amount: string; currencyCode: string };
+  };
+  caratMetafield: string;
+  shape: string;
+  diamondColor: string;
+  cut: string;
+  clarity: string;
+  depth: string;
+  polish: string;
+  lwRatio: string;
+  fluorescence: string;
+  report: string;
+  table: string;
+  symmetry: string;
+  showOnCollection: string;
+  sizeProductOption: string;
+  certification: string;
+  style: string;
+  sliderEnable: string;
+  pinned: string;
+  variants: {
+    nodes: {
+      id: string;
+      title: string;
+      availableForSale: boolean;
+      price: string | number;
+      compareAtPrice?: string | number | null;
+      selectedOptions: {
+        name: string;
+        value: string;
+      }[];
+      image?: {
+        id: string;
+        altText?: string | null;
+        url: string;
+        width: number;
+        height: number;
+      } | null;
+    }[];
+  };
+};
+
+export type ProductsResponseData = {
+  data: {
+    nodes: ProductResponse[];
+    pageInfo: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+    };
   };
 };

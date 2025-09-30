@@ -1,4 +1,4 @@
-export const productsQuery = `
+export const getProductsQuery = `
 query getProducts($limit: Int, $cursor: String) {
   products(first: $limit, after: $cursor) {
     nodes {

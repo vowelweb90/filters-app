@@ -1,4 +1,4 @@
-import { productsQuery } from "app/queries/graphql/productsQuery";
+import { getProductsQuery } from "app/queries/graphql/getProductsQuery";
 import {
   AdminClient,
   BatchContext,
@@ -19,7 +19,7 @@ export async function fetchProducts({
 }) {
   try {
     const data = await admin.graphql<ProductsGQL<ImportProductGQL>>(
-      productsQuery,
+      getProductsQuery,
       {
         cursor,
         limit: productsPerRequest,
