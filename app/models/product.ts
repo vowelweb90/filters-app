@@ -21,7 +21,7 @@ const productSchema = new mongoose.Schema(
         "ROUND",
         "SIDE STONES",
         "SOLITARE",
-        "STUDS", // from errors
+        "STUDS",
         "HEART",
         "OVAL",
         "CUSHION BRILLIANT",
@@ -38,6 +38,9 @@ const productSchema = new mongoose.Schema(
         "CUSHION MODIFIED",
         "FULL ETERNITY",
         "BANGLE",
+        "HOOPS",
+        "UNIQUE",
+        "FIVE STONE",
       ],
     },
     shape: {
@@ -55,18 +58,12 @@ const productSchema = new mongoose.Schema(
         "ROUND",
         "CUSHION BRILLIANT",
         "CUSHION MODIFIED",
+        "SQUARE EMERALD",
       ],
     },
     cut: {
       type: String,
-      enum: [
-        "EX",
-        "GD",
-        "ID",
-        "VG",
-        "F", // from errors
-        "ID",
-      ],
+      enum: ["EX", "GD", "ID", "VG", "F", "ID"],
     },
     carat: { type: Number },
     carat_size: { type: [Number] },
@@ -76,14 +73,7 @@ const productSchema = new mongoose.Schema(
     },
     diamond_color: {
       type: String,
-      enum: [
-        "D",
-        "E",
-        "F",
-        "F-G",
-        "G",
-        "E-F-G", // from errors
-      ],
+      enum: ["D", "E", "F", "F-G", "G", "E-F-G"],
     },
     polish: { type: String, enum: ["EX", "GD", "VG"] },
     symmetry: { type: String, enum: ["EX", "GD", "VG"] },

@@ -51,6 +51,8 @@ module.exports = {
       rules: {
         "react/no-unknown-property": ["error", { ignore: ["variant"] }],
         "no-useless-catch": "off",
+        "@typescript-eslint/no-explicit-any": "off",
+        "no-console": "warn",
       },
     },
 
@@ -77,6 +79,7 @@ module.exports = {
       ],
       rules: {
         "@typescript-eslint/no-explicit-any": "off",
+        "no-console": "warn",
       },
     },
 

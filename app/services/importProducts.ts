@@ -6,16 +6,29 @@ import { createAdminClient } from "../services/helpers/createAdminClient";
 import { fetchProducts } from "../services/helpers/fetchProducts";
 import { formatProducts } from "../services/helpers/formatProducts";
 
-const MAX_REQUESTS_LIMIT = 5;
-const MAX_ERROR_LIMIT = 50;
-const PRODUCTS_PER_REQUEST = 250;
-const API_VERSION = "2025-01";
-const START_CURSOR = null;
-const SHOP = process.env.SHOP;
-const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
-
-export async function importProducts() {
+export async function importProducts({
+  maxRequestsLimit,
+  productsPerRequest,
+  startCursor,
+  shop,
+  accessToken,
+}: {
+  maxRequestsLimit: number;
+  productsPerRequest: number;
+  startCursor?: string;
+  shop?: string;
+  accessToken?: string;
+}) {
   try {
+    const MAX_REQUESTS_LIMIT = maxRequestsLimit;
+    const MAX_ERROR_LIMIT = 50;
+    const PRODUCTS_PER_REQUEST = productsPerRequest;
+    const API_VERSION = "2025-01";
+    const START_CURSOR = startCursor || null;
+    const SHOP = shop || process.env.SHOP;
+    const SHOPIFY_ACCESS_TOKEN =
+      accessToken || process.env.SHOPIFY_ACCESS_TOKEN;
+
     let hasNextPage = true;
     let cursor: string | null = START_CURSOR;
     let errors = [];
