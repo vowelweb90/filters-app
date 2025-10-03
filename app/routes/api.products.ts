@@ -23,11 +23,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
     const query: Record<string, any> = {};
     const context: Record<string, any> = {};
 
+    // extract all params and collect them in context
     extractAllParams(params, context);
+
+    // build mongodb query based on the search params
     buildQuery(query, context);
 
-    const sort: Record<string, SortOrder> = { style: 1, cut: 1, shape: 1 };
-    if (context.sortBy) sort[context.sortBy] = context.sortOrder;
+    // default sort
+    let sort: Record<string, SortOrder> = { style: 1, cut: 1, shape: 1 };
+
+    // add the sort from the search params if exists
+    if (context.sortBy) {
+      // if sort is one of shape, style and cut then overwrite their value
+      if (["shape", "style", "cut"].includes(context.sortBy)) {
+        sort[context.sortBy] = context.sortOrder;
+      } 
+      // else add the sort_by key with the highest priority in the sort 
+      else {
+        sort = { [context.sortBy]: context.sortOrder, ...sort };
+      }
+    }
 
     const skip = (context.page - 1) * context.limit;
 
@@ -123,13 +138,21 @@ function extractAllParams(
         ? Number(params.get("l"))
         : 20;
 
-    context.sortBy = ["priceAmount", "title", "shopifyCreatedAt"].includes(
-      params.get("sort_by") || "",
-    )
-      ? (params.get("sort_by") as "priceAmount" | "title" | "shopifyCreatedAt")
-      : null;
+    const sortKeys = [
+      "priceAmount",
+      "style",
+      "cut",
+      "shape",
+      "title",
+      "shopifyCreatedAt",
+    ] as const;
+    context.sortBy =
+      params.get("sb")?.trim() &&
+      sortKeys.includes(params.get("sb") as (typeof sortKeys)[number])
+        ? params.get("sb")
+        : null;
 
-    context.sortOrder = params.get("sort_order") === "desc" ? -1 : 1;
+    context.sortOrder = params.get("so") === "desc" ? -1 : 1;
 
     context.collections = sanitizeArray(params.getAll("cids[]"), false).map(
       (id) => toGid("Collection", id),
@@ -161,7 +184,6 @@ function extractAllParams(
         ? Number(params.get("lw_ratio"))
         : null;
 
-    console.log('params.get("carat_min"): ', params.get("carat_min"));
     context.caratMin =
       params.get("carat_min") && !isNaN(Number(params.get("carat_min")))
         ? Number(params.get("carat_min"))
