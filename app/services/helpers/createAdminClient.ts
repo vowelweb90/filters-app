@@ -11,8 +11,9 @@ export function createAdminClient({
   apiVersion: string;
 }): AdminClient {
   const admin: AdminClient = {
-    graphql: async (query: string, variables = {}) => {
+    graphql: async (query: string, options: { variables: any }) => {
       let response, data;
+      const variables = options.variables || undefined;
       try {
         response = await fetch(
           `https://${shop}/admin/api/${apiVersion}/graphql.json`,

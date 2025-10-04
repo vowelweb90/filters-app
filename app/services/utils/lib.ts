@@ -49,3 +49,8 @@ export const sanitizeArray = (arr: string[], uppercase: boolean = true) =>
       return v.trim();
     })
     .filter(Boolean);
+
+export function getArrayParams(params: URLSearchParams, key: string): string[] {
+  const value = params.get(key);
+  return value ? value.split(",") : [];
+}

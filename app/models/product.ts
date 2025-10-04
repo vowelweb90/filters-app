@@ -1,5 +1,10 @@
 import mongoose from "mongoose";
 
+const ProductOption = new mongoose.Schema({
+  name: { type: String },
+  values: { type: [String] },
+});
+
 const productSchema = new mongoose.Schema(
   {
     gid: { type: String, required: true },
@@ -83,6 +88,10 @@ const productSchema = new mongoose.Schema(
     lw_ratio: { type: Number },
     fluorescence: { type: String },
     table: { type: Number },
+
+    // option fields
+    options: { type: [ProductOption] },
+    optionValues: { type: [String] },
   },
   { timestamps: true },
 );

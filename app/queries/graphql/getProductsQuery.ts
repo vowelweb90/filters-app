@@ -21,6 +21,10 @@ query getProducts($limit: Int, $cursor: String) {
           currencyCode
         }
       }
+      options{
+        name
+        values
+      }
       collections(first: 250) {
         nodes {
           id

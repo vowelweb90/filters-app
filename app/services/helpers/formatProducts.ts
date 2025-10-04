@@ -20,6 +20,12 @@ export function formatProducts(
       priceCurrency: p.priceRangeV2?.minVariantPrice?.currencyCode || null,
       collections: p.collections?.nodes?.map((c) => c.id) || [],
       collectionHandles: p.collections?.nodes?.map((c) => c.handle) || [],
+      options:
+        p.options?.map((opt) => ({
+          name: opt.name,
+          values: opt.values,
+        })) || [],
+      optionValues: p.options?.flatMap((opt) => opt.values) || [],
     };
 
     for (const field of METAFIELDS) {

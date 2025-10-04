@@ -13,16 +13,22 @@ export async function importProducts({
   shop,
   accessToken,
 }: {
-  maxRequestsLimit: number;
-  productsPerRequest: number;
+  maxRequestsLimit: string;
+  productsPerRequest: string;
   startCursor?: string;
   shop?: string;
   accessToken?: string;
 }) {
   try {
-    const MAX_REQUESTS_LIMIT = maxRequestsLimit;
+    if (
+      isNaN(parseInt(maxRequestsLimit)) ||
+      isNaN(parseInt(productsPerRequest))
+    )
+      throw new Error("Invalid config args");
+
+    const MAX_REQUESTS_LIMIT = Number(maxRequestsLimit);
     const MAX_ERROR_LIMIT = 50;
-    const PRODUCTS_PER_REQUEST = productsPerRequest;
+    const PRODUCTS_PER_REQUEST = Number(productsPerRequest);
     const API_VERSION = "2025-01";
     const START_CURSOR = startCursor || null;
     const SHOP = shop || process.env.SHOP;
@@ -68,7 +74,16 @@ export async function importProducts({
           valueCollectionContext,
         );
 
-        context.result = await Product.create(context.formattedProducts);
+        context.result = await Product.bulkWrite(
+          context.formattedProducts.map((p) => ({
+            updateOne: {
+              filter: { gid: p.gid },
+              update: { $set: p },
+              upsert: true,
+              runValidators: true,
+            },
+          })),
+        );
 
         context.success = true;
       } catch (error) {
@@ -126,26 +141,28 @@ export async function importProducts({
           context.data?.extensions?.cost?.throttleStatus?.currentlyAvailable,
         );
 
+        const queryCost = context.data
+          ? (context.data?.extensions
+              ?.cost as (typeof context.data)["extensions"]["cost"])
+          : null;
         if (
           !encounteredRateLimitError &&
-          context.data?.extensions?.cost?.throttleStatus?.currentlyAvailable &&
-          context.data?.extensions?.cost?.throttleStatus?.currentlyAvailable <
-            context.data?.extensions?.cost?.requestedQueryCost
+          queryCost &&
+          queryCost.throttleStatus.currentlyAvailable <=
+            queryCost.requestedQueryCost
         ) {
           context.waitMs =
             Math.ceil(
-              context.data?.extensions?.cost?.throttleStatus?.maximumAvailable /
-                context.data?.extensions?.cost?.throttleStatus?.restoreRate,
+              queryCost.throttleStatus?.maximumAvailable /
+                queryCost.throttleStatus?.restoreRate,
             ) * 1000;
 
           log(
             `Max requests reached by shopify API |`,
             "currentlyAvailable:",
-            context.data?.extensions?.cost?.throttleStatus
-              ?.currentlyAvailable || null,
+            queryCost.throttleStatus?.currentlyAvailable || null,
             "maximumAvailable:",
-            context.data?.extensions?.cost?.throttleStatus?.maximumAvailable ||
-              null,
+            queryCost.throttleStatus?.maximumAvailable || null,
             `\nsleeping for ${context.waitMs / 1000} seconds...`,
           );
 

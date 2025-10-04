@@ -1,6 +1,11 @@
 import { Product } from "../models/product";
 import { LoaderFunctionArgs } from "react-router";
-import { json, sanitizeArray, toGid } from "../services/utils/lib";
+import {
+  getArrayParams,
+  json,
+  sanitizeArray,
+  toGid,
+} from "../services/utils/lib";
 import { SortOrder } from "mongoose";
 import { apiVersion } from "app/shopify.server";
 import {
@@ -37,8 +42,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       // if sort is one of shape, style and cut then overwrite their value
       if (["shape", "style", "cut"].includes(context.sortBy)) {
         sort[context.sortBy] = context.sortOrder;
-      } 
-      // else add the sort_by key with the highest priority in the sort 
+      }
+      // else add the sort_by key with the highest priority in the sort
       else {
         sort = { [context.sortBy]: context.sortOrder, ...sort };
       }
@@ -57,13 +62,9 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     const total = await Product.countDocuments(query);
 
-    // const response = await admin.graphql(GET_PRODUCTS_BY_IDS, {
-    //   variables: { ids: products.map((p) => p.gid) },
-    // });
-
     const data = await admin.graphql<{ nodes: ProductResponseGQL[] }>(
       getProductsByIdsQuery,
-      { ids: products.map((p) => p.gid) },
+      { variables: { ids: products.map((p) => p.gid) } },
     );
 
     const shopifyProducts = (data.data?.nodes || []).map(
@@ -154,14 +155,18 @@ function extractAllParams(
 
     context.sortOrder = params.get("so") === "desc" ? -1 : 1;
 
-    context.collections = sanitizeArray(params.getAll("cids[]"), false).map(
-      (id) => toGid("Collection", id),
+    context.collections = sanitizeArray(
+      getArrayParams(params, "cids"),
+      false,
+    ).map((id) => toGid("Collection", id));
+
+    context.collectionHandles = sanitizeArray(
+      getArrayParams(params, "chs"),
+      false,
     );
 
-    context.collectionHandles = sanitizeArray(params.getAll("chs[]"), false);
-
-    context.ids = sanitizeArray(params.getAll("ids[]"), false).map((id) =>
-      toGid("Product", id),
+    context.ids = sanitizeArray(getArrayParams(params, "ids"), false).map(
+      (id) => toGid("Product", id),
     );
 
     context.depthMin =
@@ -205,22 +210,26 @@ function extractAllParams(
         : null;
 
     const sanitizedFilters: Record<string, any> = {};
-    sanitizedFilters.style = sanitizeArray(params.getAll("style[]"));
-    sanitizedFilters.shape = sanitizeArray(params.getAll("shape[]"));
-    sanitizedFilters.cut = sanitizeArray(params.getAll("cut[]"));
+    sanitizedFilters.style = sanitizeArray(getArrayParams(params, "style"));
+    sanitizedFilters.shape = sanitizeArray(getArrayParams(params, "shape"));
+    sanitizedFilters.cut = sanitizeArray(getArrayParams(params, "cut"));
     sanitizedFilters.diamond_color = sanitizeArray(
-      params.getAll("diamond_color[]"),
+      getArrayParams(params, "diamond_color"),
     );
-    sanitizedFilters.clarity = sanitizeArray(params.getAll("clarity[]"));
-    sanitizedFilters.polish = sanitizeArray(params.getAll("polish[]"));
-    sanitizedFilters.symmetry = sanitizeArray(params.getAll("symmetry[]"));
+    sanitizedFilters.clarity = sanitizeArray(getArrayParams(params, "clarity"));
+    sanitizedFilters.polish = sanitizeArray(getArrayParams(params, "polish"));
+    sanitizedFilters.symmetry = sanitizeArray(
+      getArrayParams(params, "symmetry"),
+    );
     sanitizedFilters.certification = sanitizeArray(
-      params.getAll("certification[]"),
+      getArrayParams(params, "certification"),
     );
     sanitizedFilters.fluorescence = sanitizeArray(
-      params.getAll("fluorescence[]"),
+      getArrayParams(params, "fluorescence"),
     );
-    sanitizedFilters.ring_carat = sanitizeArray(params.getAll("ring_carat[]"))
+    sanitizedFilters.ring_carat = sanitizeArray(
+      getArrayParams(params, "ring_carat"),
+    )
       .map((v) => Number(v))
       .filter((v) => !isNaN(v));
 

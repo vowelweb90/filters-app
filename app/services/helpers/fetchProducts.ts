@@ -21,8 +21,10 @@ export async function fetchProducts({
     const data = await admin.graphql<ProductsGQL<ImportProductGQL>>(
       getProductsQuery,
       {
-        cursor,
-        limit: productsPerRequest,
+        variables: {
+          cursor,
+          limit: productsPerRequest,
+        },
       },
     );
 

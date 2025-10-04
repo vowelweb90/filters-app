@@ -5,6 +5,8 @@ export type AdminClient = {
   graphql: <T>(q: string, v: object) => Promise<GraphqlResponse<T>>;
 };
 
+export type ProductOption = { name: string; values: string[] };
+
 export type TProduct = {
   gid: string;
   title: string;
@@ -15,6 +17,8 @@ export type TProduct = {
   priceCurrency: string | null;
   collections: string[];
   collectionHandles: string[];
+  options: ProductOption[];
+  optionValues: string[];
   style?: string | null;
   shape?: string | null;
   cut?: string | null;
@@ -65,6 +69,7 @@ export type ImportProductGQL = {
   collections: {
     nodes: { id: string; handle: string }[];
   };
+  options: ProductOption[];
 };
 
 export type ProductsGQL<T> = {
@@ -97,7 +102,7 @@ export type GraphqlResponse<T> = {
 export type BatchContext = {
   formattedProducts?: TProduct[];
   success?: boolean;
-  result?: unknown[];
+  result?: unknown;
   data?: GraphqlResponse<ProductsGQL<ImportProductGQL>>;
   cursor?: string | null;
   batchRequestCount?: number | null;
