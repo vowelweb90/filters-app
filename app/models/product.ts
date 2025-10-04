@@ -92,6 +92,11 @@ const productSchema = new mongoose.Schema(
     // option fields
     options: { type: [ProductOption] },
     optionValues: { type: [String] },
+
+    // sort helpers
+    hasStyle: { type: Boolean },
+    hasShape: { type: Boolean },
+    hasCut: { type: Boolean },
   },
   { timestamps: true },
 );
@@ -106,7 +111,10 @@ productSchema.index(
   { name: "TextSearchIndex" },
 );
 
-productSchema.index({ style: 1, carat: 1, shape: 1 }, { name: "SortIndex" });
+productSchema.index(
+  { hasStyle: 1, hasShape: 1, hasCut: 1, style: 1, carat: 1, shape: 1 },
+  { name: "SortIndex" },
+);
 
 export const Product =
   mongoose.models.Product || mongoose.model("Product", productSchema);

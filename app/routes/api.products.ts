@@ -35,7 +35,20 @@ export async function loader({ request }: LoaderFunctionArgs) {
     buildQuery(query, context);
 
     // default sort
-    let sort: Record<string, SortOrder> = { style: 1, cut: 1, shape: 1 };
+    let sort: Record<string, SortOrder> = {
+      // these props are just for sorting docs with actual
+      // values to the front, so that the docs with null values
+      // or docs that dont have the property will be sorted out at last.
+      hasStyle: 1, // sorts docs without style to last
+      hasCut: 1, // sorts docs without Cut to last
+      hasShape: 1, // sort docs without Shape to last
+
+      // This is the actual sort which will be applied after the above sort
+      // compound sort
+      style: 1,
+      cut: 1,
+      shape: 1,
+    };
 
     // add the sort from the search params if exists
     if (context.sortBy) {
@@ -232,6 +245,7 @@ function extractAllParams(
     )
       .map((v) => Number(v))
       .filter((v) => !isNaN(v));
+    sanitizedFilters.options = sanitizeArray(getArrayParams(params, "options"));
 
     context.collections = context.collections?.length
       ? context.collections
@@ -268,6 +282,9 @@ function extractAllParams(
     context.fluorescence = sanitizedFilters.fluorescence?.length
       ? sanitizedFilters.fluorescence
       : null;
+    context.options = sanitizedFilters.options?.length
+      ? sanitizedFilters.options
+      : null;
   } catch (error) {
     throw error;
   }
@@ -281,15 +298,15 @@ function buildQuery(query: Record<string, any>, context: Record<string, any>) {
       query.collectionHandles = { $in: context.collectionHandles };
     if (context.ids) query.gid = { $in: context.ids };
 
-    if (context.style || context.shape || context.cut) {
-      if (context.style) query.style = { $in: context.style };
-      if (context.shape) query.shape = { $in: context.shape };
-      if (context.cut) query.cut = { $in: context.cut };
-    } else {
-      query.style = context.style || { $exists: true };
-      query.shape = context.shape || { $exists: true };
-      query.cut = context.cut || { $exists: true };
-    }
+    // if (context.style || context.shape || context.cut) {
+    if (context.style) query.style = { $in: context.style };
+    if (context.shape) query.shape = { $in: context.shape };
+    if (context.cut) query.cut = { $in: context.cut };
+    // } else {
+    //   query.style = context.style || { $exists: true };
+    //   query.shape = context.shape || { $exists: true };
+    //   query.cut = context.cut || { $exists: true };
+    // }
     if (context.diamond_color?.length)
       query.diamond_color = { $in: context.diamond_color };
     if (context.clarity?.length) query.clarity = { $in: context.clarity };
@@ -301,6 +318,9 @@ function buildQuery(query: Record<string, any>, context: Record<string, any>) {
       query.ring_carat = { $in: context.ring_carat };
     if (context.fluorescence?.length)
       query.fluorescence = { $in: context.fluorescence };
+    if (context.options?.length) {
+      query.optionValues = { $in: context.options };
+    }
     if (context.table !== null) query.table = context.table;
     if (context.lw_ratio !== null) query.lw_ratio = context.lw_ratio;
 

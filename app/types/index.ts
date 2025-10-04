@@ -17,8 +17,12 @@ export type TProduct = {
   priceCurrency: string | null;
   collections: string[];
   collectionHandles: string[];
+ 
+  // product options
   options: ProductOption[];
   optionValues: string[];
+
+  // Metafields
   style?: string | null;
   shape?: string | null;
   cut?: string | null;
@@ -34,6 +38,11 @@ export type TProduct = {
   lw_ratio?: number | null;
   fluorescence?: string | null;
   table?: number | null;
+
+  // sort helpers
+  hasStyle?: boolean;
+  hasShape?: boolean;
+  hasCut?: boolean;
 };
 
 export type MetafieldKey = (typeof METAFIELDS)[number]["key"];

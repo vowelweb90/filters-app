@@ -28,6 +28,7 @@ export function formatProducts(
       optionValues: p.options?.flatMap((opt) => opt.values) || [],
     };
 
+    // add metafields
     for (const field of METAFIELDS) {
       const metafield = p.metafields.nodes.find((m) => m.key === field.key);
 
@@ -96,6 +97,11 @@ export function formatProducts(
         }
       }
     }
+
+    // check if proper sort values exist otherwise add sort helpers
+    if (!fp.style) fp.hasStyle = false;
+    if (!fp.shape) fp.hasShape = false;
+    if (!fp.cut) fp.hasCut = false;
 
     return fp;
   });
