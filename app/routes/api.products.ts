@@ -6,17 +6,21 @@ import {
   sanitizeArray,
   toGid,
 } from "../services/utils/lib";
-import { SortOrder } from "mongoose";
 import { apiVersion } from "app/shopify.server";
 import {
+  FilterAPIContext,
   ProductResponse,
   ProductResponseGQL,
   ProductsResponseData,
+  SearchParams,
+  SortOptions,
 } from "app/types";
 import { createAdminClient } from "app/services/helpers/createAdminClient";
 import { getProductsByIdsQuery } from "app/queries/graphql/getProductsByIdsQuery";
+import { SortOrder } from "mongoose";
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  const context: FilterAPIContext = { sort: {} };
   try {
     const admin = createAdminClient({
       shop: process.env.SHOP!,
@@ -25,62 +29,39 @@ export async function loader({ request }: LoaderFunctionArgs) {
     });
     const url = new URL(request.url);
     const params = url.searchParams;
-    const query: Record<string, any> = {};
-    const context: Record<string, any> = {};
+
+    context.originalParams = Object.fromEntries(params);
 
     // extract all params and collect them in context
-    extractAllParams(params, context);
+    context.searchParams = extractAllParams(params);
 
     // build mongodb query based on the search params
-    buildQuery(query, context);
+    context.query = buildQuery(context.searchParams);
+    context.sort = buildSort(context.searchParams);
 
-    // default sort
-    let sort: Record<string, SortOrder> = {
-      // these props are just for sorting docs with actual
-      // values to the front, so that the docs with null values
-      // or docs that dont have the property will be sorted out at last.
-      hasStyle: 1, // sorts docs without style to last
-      hasCut: 1, // sorts docs without Cut to last
-      hasShape: 1, // sort docs without Shape to last
+    if (!context.searchParams)
+      throw new Error(
+        `searchParams is ${JSON.stringify(context.searchParams)}`,
+      );
 
-      // This is the actual sort which will be applied after the above sort
-      // compound sort
-      style: 1,
-      cut: 1,
-      shape: 1,
-    };
+    const skip = (context.searchParams.page - 1) * context.searchParams.limit;
 
-    // add the sort from the search params if exists
-    if (context.sortBy) {
-      // if sort is one of shape, style and cut then overwrite their value
-      if (["shape", "style", "cut"].includes(context.sortBy)) {
-        sort[context.sortBy] = context.sortOrder;
-      }
-      // else add the sort_by key with the highest priority in the sort
-      else {
-        sort = { [context.sortBy]: context.sortOrder, ...sort };
-      }
-    }
-
-    const skip = (context.page - 1) * context.limit;
-
-    console.log("query: ", JSON.stringify(query, null, 2));
-    console.log("sort: ", JSON.stringify(sort, null, 2));
     console.log("context: ", JSON.stringify(context, null, 2));
-
-    const products = await Product.find(query, { gid: 1, _id: 0 })
-      .sort(sort)
+    context.products = await Product.find(context.query, { gid: 1, _id: 0 })
+      .sort(context.sort)
       .skip(skip)
-      .limit(context.limit);
+      .limit(context.searchParams.limit);
 
-    const total = await Product.countDocuments(query);
+    console.log("products: ", context.products.length);
+
+    const total = await Product.countDocuments(context.query);
 
     const data = await admin.graphql<{ nodes: ProductResponseGQL[] }>(
       getProductsByIdsQuery,
-      { variables: { ids: products.map((p) => p.gid) } },
+      { variables: { ids: context.products.map((p) => p.gid) } },
     );
 
-    const shopifyProducts = (data.data?.nodes || []).map(
+    context.shopifyProducts = (data.data?.nodes || []).map(
       (node) =>
         ({
           id: node.id,
@@ -112,43 +93,52 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
     const responseData: ProductsResponseData = {
       data: {
-        nodes: shopifyProducts,
+        nodes: context.shopifyProducts,
         pageInfo: {
-          page: context.page,
-          limit: context.limit,
+          page: context.searchParams.page,
+          limit: context.searchParams.limit,
           total,
-          totalPages: Math.ceil(total / context.limit),
-          hasNextPage: context.page < Math.ceil(total / context.limit),
-          hasPreviousPage: context.page > 1,
+          totalPages: Math.ceil(total / context.searchParams.limit),
+          hasNextPage:
+            context.searchParams.page <
+            Math.ceil(total / context.searchParams.limit),
+          hasPreviousPage: context.searchParams.page > 1,
         },
       },
     };
 
     return json(responseData);
   } catch (error) {
-    console.error("Error fetching products:", error);
+    console.error(
+      new Date().toLocaleString("en-IN"),
+      "Error fetching products:",
+      error,
+      "\n",
+      `Error data: ${JSON.stringify(context, null, 2)}`,
+    );
     return json({ error: "Failed to fetch products" }, { status: 500 });
   }
 }
 
-function extractAllParams(
-  params: URLSearchParams,
-  context: Record<string, any>,
-) {
+function extractAllParams(params: URLSearchParams) {
   try {
-    context.search = params.get("q")?.trim() || null;
+    const searchParams: SearchParams = {
+      search: "",
+      page: 1,
+      limit: 20,
+    };
 
-    context.page =
+    searchParams.search = params.get("q")?.trim() || "";
+
+    searchParams.page =
       params.get("p") &&
       !isNaN(Number(params.get("p"))) &&
       Number(params.get("p")) > 0
         ? Number(params.get("p"))
         : 1;
 
-    context.limit =
-      params.get("l") &&
-      !isNaN(Number(params.get("l"))) &&
-      Number(params.get("l")) > 0
+    searchParams.limit =
+      !isNaN(Number(params.get("l"))) && Number(params.get("l")) > 0
         ? Number(params.get("l"))
         : 20;
 
@@ -160,67 +150,57 @@ function extractAllParams(
       "title",
       "shopifyCreatedAt",
     ] as const;
-    context.sortBy =
-      params.get("sb")?.trim() &&
-      sortKeys.includes(params.get("sb") as (typeof sortKeys)[number])
-        ? params.get("sb")
-        : null;
 
-    context.sortOrder = params.get("so") === "desc" ? -1 : 1;
+    if (sortKeys.includes(params.get("sb") as (typeof sortKeys)[number]))
+      searchParams.sortBy = params.get("sb") || undefined;
 
-    context.collections = sanitizeArray(
+    if (!isNaN(Number(params.get("so"))))
+      searchParams.sortOrder = Number(params.get("so")) as SortOrder;
+
+    // if any of the sort field is not available then set the other
+    // sort field null to avoid strange behaviour in sorting
+    if (!searchParams.sortOrder || !searchParams.sortBy) {
+      delete searchParams.sortOrder;
+      delete searchParams.sortBy;
+    }
+
+    searchParams.collections = sanitizeArray(
       getArrayParams(params, "cids"),
       false,
     ).map((id) => toGid("Collection", id));
 
-    context.collectionHandles = sanitizeArray(
+    searchParams.collectionHandles = sanitizeArray(
       getArrayParams(params, "chs"),
       false,
     );
 
-    context.ids = sanitizeArray(getArrayParams(params, "ids"), false).map(
+    searchParams.ids = sanitizeArray(getArrayParams(params, "ids"), false).map(
       (id) => toGid("Product", id),
     );
 
-    context.depthMin =
-      params.get("depth_min") && !isNaN(Number(params.get("depth_min")))
-        ? Number(params.get("depth_min"))
-        : null;
+    if (params.get("depth_min") && !isNaN(Number(params.get("depth_min"))))
+      searchParams.depthMin = Number(params.get("depth_min"));
 
-    context.depthMax =
-      params.get("depth_max") && !isNaN(Number(params.get("depth_max")))
-        ? Number(params.get("depth_max"))
-        : null;
+    if (params.get("depth_max") && !isNaN(Number(params.get("depth_max"))))
+      searchParams.depthMax = Number(params.get("depth_max"));
 
-    context.table =
-      params.get("table") && !isNaN(Number(params.get("table")))
-        ? Number(params.get("table"))
-        : null;
+    if (params.get("table") && !isNaN(Number(params.get("table"))))
+      searchParams.table = Number(params.get("table"));
 
-    context.lw_ratio =
-      params.get("lw_ratio") && !isNaN(Number(params.get("lw_ratio")))
-        ? Number(params.get("lw_ratio"))
-        : null;
+    if (params.get("lw_ratio") && !isNaN(Number(params.get("lw_ratio"))))
+      searchParams.lw_ratio = Number(params.get("lw_ratio"));
 
-    context.caratMin =
-      params.get("carat_min") && !isNaN(Number(params.get("carat_min")))
-        ? Number(params.get("carat_min"))
-        : null;
+    if (params.get("carat_min") && !isNaN(Number(params.get("carat_min"))))
+      searchParams.caratMin = Number(params.get("carat_min"));
 
-    context.caratMax =
-      params.get("carat_max") && !isNaN(Number(params.get("carat_max")))
-        ? Number(params.get("carat_max"))
-        : null;
+    if (params.get("carat_max") && !isNaN(Number(params.get("carat_max"))))
+      searchParams.caratMax = Number(params.get("carat_max"));
 
-    context.priceMin =
-      params.get("price_min") && !isNaN(Number(params.get("price_min")))
-        ? Number(params.get("price_min"))
-        : null;
+    if (params.get("price_min") && !isNaN(Number(params.get("price_min"))))
+      searchParams.priceMin = Number(params.get("price_min"));
 
-    context.priceMax =
-      params.get("price_max") && !isNaN(Number(params.get("price_max")))
-        ? Number(params.get("price_max"))
-        : null;
+    if (params.get("price_max") && !isNaN(Number(params.get("price_max"))))
+      searchParams.priceMax = Number(params.get("price_max"));
 
     const sanitizedFilters: Record<string, any> = {};
     sanitizedFilters.style = sanitizeArray(getArrayParams(params, "style"));
@@ -247,102 +227,143 @@ function extractAllParams(
       .filter((v) => !isNaN(v));
     sanitizedFilters.options = sanitizeArray(getArrayParams(params, "options"));
 
-    context.collections = context.collections?.length
-      ? context.collections
+    searchParams.collections = searchParams.collections?.length
+      ? searchParams.collections
       : null;
-    context.collectionHandles = context.collectionHandles?.length
-      ? context.collectionHandles
+    searchParams.collectionHandles = searchParams.collectionHandles?.length
+      ? searchParams.collectionHandles
       : null;
-    context.ids = context.ids?.length ? context.ids : null;
-    context.ring_carat = sanitizedFilters.ring_carat?.length
+    searchParams.ids = searchParams.ids?.length ? searchParams.ids : null;
+    searchParams.ring_carat = sanitizedFilters.ring_carat?.length
       ? sanitizedFilters.ring_carat
       : null;
-    context.style = sanitizedFilters.style?.length
+    searchParams.style = sanitizedFilters.style?.length
       ? sanitizedFilters.style
       : null;
-    context.shape = sanitizedFilters.shape?.length
+    searchParams.shape = sanitizedFilters.shape?.length
       ? sanitizedFilters.shape
       : null;
-    context.cut = sanitizedFilters.cut?.length ? sanitizedFilters.cut : null;
-    context.diamond_color = sanitizedFilters.diamond_color?.length
+    searchParams.cut = sanitizedFilters.cut?.length
+      ? sanitizedFilters.cut
+      : null;
+    searchParams.diamond_color = sanitizedFilters.diamond_color?.length
       ? sanitizedFilters.diamond_color
       : null;
-    context.clarity = sanitizedFilters.clarity?.length
+    searchParams.clarity = sanitizedFilters.clarity?.length
       ? sanitizedFilters.clarity
       : null;
-    context.polish = sanitizedFilters.polish?.length
+    searchParams.polish = sanitizedFilters.polish?.length
       ? sanitizedFilters.polish
       : null;
-    context.symmetry = sanitizedFilters.symmetry?.length
+    searchParams.symmetry = sanitizedFilters.symmetry?.length
       ? sanitizedFilters.symmetry
       : null;
-    context.certification = sanitizedFilters.certification?.length
+    searchParams.certification = sanitizedFilters.certification?.length
       ? sanitizedFilters.certification
       : null;
-    context.fluorescence = sanitizedFilters.fluorescence?.length
+    searchParams.fluorescence = sanitizedFilters.fluorescence?.length
       ? sanitizedFilters.fluorescence
       : null;
-    context.options = sanitizedFilters.options?.length
+    searchParams.options = sanitizedFilters.options?.length
       ? sanitizedFilters.options
       : null;
+
+    return searchParams;
   } catch (error) {
     throw error;
   }
 }
 
-function buildQuery(query: Record<string, any>, context: Record<string, any>) {
+function buildQuery(searchParams: Partial<SearchParams>) {
   try {
-    if (context.search) query.$text = { $search: context.search };
-    if (context.collections) query.collections = { $in: context.collections };
-    if (context.collectionHandles)
-      query.collectionHandles = { $in: context.collectionHandles };
-    if (context.ids) query.gid = { $in: context.ids };
+    const query: Record<string, any> = {};
+    if (searchParams.search) query.$text = { $search: searchParams.search };
+    if (searchParams.collections)
+      query.collections = { $in: searchParams.collections };
+    if (searchParams.collectionHandles)
+      query.collectionHandles = { $in: searchParams.collectionHandles };
+    if (searchParams.ids) query.gid = { $in: searchParams.ids };
 
-    // if (context.style || context.shape || context.cut) {
-    if (context.style) query.style = { $in: context.style };
-    if (context.shape) query.shape = { $in: context.shape };
-    if (context.cut) query.cut = { $in: context.cut };
-    // } else {
-    //   query.style = context.style || { $exists: true };
-    //   query.shape = context.shape || { $exists: true };
-    //   query.cut = context.cut || { $exists: true };
-    // }
-    if (context.diamond_color?.length)
-      query.diamond_color = { $in: context.diamond_color };
-    if (context.clarity?.length) query.clarity = { $in: context.clarity };
-    if (context.polish?.length) query.polish = { $in: context.polish };
-    if (context.symmetry?.length) query.symmetry = { $in: context.symmetry };
-    if (context.certification?.length)
-      query.certification = { $in: context.certification };
-    if (context.ring_carat?.length)
-      query.ring_carat = { $in: context.ring_carat };
-    if (context.fluorescence?.length)
-      query.fluorescence = { $in: context.fluorescence };
-    if (context.options?.length) {
-      query.optionValues = { $in: context.options };
+    if (searchParams.style) query.style = { $in: searchParams.style };
+    if (searchParams.shape) query.shape = { $in: searchParams.shape };
+    if (searchParams.cut) query.cut = { $in: searchParams.cut };
+
+    if (searchParams.diamond_color?.length)
+      query.diamond_color = { $in: searchParams.diamond_color };
+    if (searchParams.clarity?.length)
+      query.clarity = { $in: searchParams.clarity };
+    if (searchParams.polish?.length)
+      query.polish = { $in: searchParams.polish };
+    if (searchParams.symmetry?.length)
+      query.symmetry = { $in: searchParams.symmetry };
+    if (searchParams.certification?.length)
+      query.certification = { $in: searchParams.certification };
+    if (searchParams.ring_carat?.length)
+      query.ring_carat = { $in: searchParams.ring_carat };
+    if (searchParams.fluorescence?.length)
+      query.fluorescence = { $in: searchParams.fluorescence };
+    if (searchParams.options?.length) {
+      query.optionValues = { $in: searchParams.options };
     }
-    if (context.table !== null) query.table = context.table;
-    if (context.lw_ratio !== null) query.lw_ratio = context.lw_ratio;
+    if (searchParams.table) query.table = searchParams.table;
+    if (searchParams.lw_ratio) query.lw_ratio = searchParams.lw_ratio;
 
-    if (context.caratMin !== null || context.caratMax !== null) {
+    if (searchParams.caratMin || searchParams.caratMax) {
       query.carat = {};
-      if (context.caratMin !== null) query.carat["$gte"] = context.caratMin;
-      if (context.caratMax !== null) query.carat["$lte"] = context.caratMax;
+      if (searchParams.caratMin) query.carat["$gte"] = searchParams.caratMin;
+      if (searchParams.caratMax) query.carat["$lte"] = searchParams.caratMax;
     }
 
-    if (context.depthMin !== null || context.depthMax !== null) {
+    if (searchParams.depthMin || searchParams.depthMax) {
       query.depth = {};
-      if (context.depthMin !== null) query.depth["$gte"] = context.depthMin;
-      if (context.depthMax !== null) query.depth["$lte"] = context.depthMax;
+      if (searchParams.depthMin) query.depth["$gte"] = searchParams.depthMin;
+      if (searchParams.depthMax) query.depth["$lte"] = searchParams.depthMax;
     }
 
-    if (context.priceMin !== null || context.priceMax !== null) {
+    if (searchParams.priceMin || searchParams.priceMax) {
       query.priceAmount = {};
-      if (context.priceMin !== null)
-        query.priceAmount["$gte"] = context.priceMin;
-      if (context.priceMax !== null)
-        query.priceAmount["$lte"] = context.priceMax;
+      if (searchParams.priceMin)
+        query.priceAmount["$gte"] = searchParams.priceMin;
+      if (searchParams.priceMax)
+        query.priceAmount["$lte"] = searchParams.priceMax;
     }
+
+    return query;
+  } catch (error) {
+    throw error;
+  }
+}
+
+function buildSort(searchParams: SearchParams) {
+  try {
+    // default sort
+    let sort: SortOptions = {
+      // these props are just for sorting docs with actual
+      // values to the front, so that the docs with null values
+      // or docs that dont have the property will be sorted out at last.
+      hasStyle: 1, // sorts docs without style to last
+      hasCut: 1, // sorts docs without Cut to last
+      hasShape: 1, // sort docs without Shape to last
+
+      // This is the actual sort which will be applied after the above sort
+      // compound sort
+      style: 1,
+      cut: 1,
+      shape: 1,
+    };
+
+    // add the sort from the search params if exists
+    if (searchParams.sortBy && searchParams.sortOrder) {
+      // if sort is one of shape, style and cut then overwrite their value
+      if (["shape", "style", "cut"].includes(searchParams.sortBy)) {
+        sort[searchParams.sortBy as keyof SortOptions] = searchParams.sortOrder;
+      }
+      // else add the sort_by key with the highest priority in the sort
+      else {
+        sort = { [searchParams.sortBy]: searchParams.sortOrder, ...sort };
+      }
+    }
+    return sort;
   } catch (error) {
     throw error;
   }

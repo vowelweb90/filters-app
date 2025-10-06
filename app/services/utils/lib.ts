@@ -31,7 +31,6 @@ export function sleep(interval: number) {
 
 export const toGid = (resource: string, id: string) => {
   id = id?.trim();
-  if (!id) return null;
   if (id.startsWith("gid://shopify/")) return id;
   return `gid://shopify/${resource}/${id}`;
 };

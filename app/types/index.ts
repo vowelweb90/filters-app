@@ -1,5 +1,6 @@
 import { AdminApiContext } from "@shopify/shopify-app-react-router/server";
 import { METAFIELDS } from "app/services/utils/constants";
+import { SortOrder } from "mongoose";
 
 export type AdminClient = {
   graphql: <T>(q: string, v: object) => Promise<GraphqlResponse<T>>;
@@ -17,7 +18,7 @@ export type TProduct = {
   priceCurrency: string | null;
   collections: string[];
   collectionHandles: string[];
- 
+
   // product options
   options: ProductOption[];
   optionValues: string[];
@@ -280,4 +281,52 @@ export type ProductsResponseData = {
       hasPreviousPage: boolean;
     };
   };
+};
+
+export type SearchParams = {
+  search: string;
+  page: number;
+  limit: number;
+  sortBy?: string;
+  sortOrder?: SortOrder;
+  collections?: string[] | null;
+  collectionHandles?: string[] | null;
+  ids?: string[] | null;
+  depthMin?: number;
+  depthMax?: number;
+  table?: number;
+  lw_ratio?: number;
+  caratMin?: number;
+  caratMax?: number;
+  priceMin?: number;
+  priceMax?: number;
+  ring_carat?: string;
+  style?: string;
+  shape?: string;
+  cut?: string;
+  diamond_color?: string;
+  clarity?: string;
+  polish?: string;
+  symmetry?: string;
+  certification?: string;
+  fluorescence?: string;
+  options?: string;
+};
+
+export type SortOptions = {
+  hasStyle?: SortOrder;
+  hasCut?: SortOrder;
+  hasShape?: SortOrder;
+  style?: SortOrder;
+  cut?: SortOrder;
+  shape?: SortOrder;
+} & { [K in keyof TProduct]?: SortOrder };
+
+export type FilterAPIContext = {
+  query?: Record<string, any>;
+  originalParams?: Record<string, any>;
+  searchParams?: SearchParams;
+  sort: SortOptions;
+  shopifyProducts?: ProductResponse[];
+  products?: TProduct[];
 };
